@@ -25,6 +25,13 @@ class spaceInvaders():
         self.truncated = False
         self.reward = 0
 
+        self.spike_history = []
+        self.action_history = []
+        self.reward_history = []
+        self.input_spike_counts = []
+        self.output_currents = []
+
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("Using device:", self.device)
 
@@ -100,6 +107,13 @@ class spaceInvaders():
 
             # Choose action based on output spike counts *after* running the network
             spike_counts = self.network.layers['Output'].s.sum(dim=0)
+
+            self.spike_history.append(spike_counts.cpu().numpy())
+            self.action_history.append(action)
+            self.reward_history.append(self.reward)
+            self.input_spike_counts.append(spikes.sum().item())
+            self.output_currents.append(current.cpu().numpy())
+
             print("Spike counts from output layer:", spike_counts)
 
             action = torch.argmax(spike_counts).item()
@@ -112,9 +126,52 @@ class spaceInvaders():
 
         print("Game loop ended. Closing environment...")
         self.env.close()
+        self.plot_stats()
+
 
     def print_info(self):
         print(f"State: {self.state}\nReward: {self.reward}\nTerminated: {self.terminated}\nTruncated: {self.truncated}")
+
+    def plot_stats(self):
+        spikes = np.array(self.spike_history)
+        currents = np.array(self.output_currents)
+
+        plt.figure(figsize=(12, 6))
+        plt.subplot(2, 1, 1)
+        plt.title("Output Neuron Activations Over Time")
+        for i in range(spikes.shape[1]):
+            plt.plot([s[i] for s in spikes], label=f"Neuron {i}")
+        plt.legend()
+
+        plt.subplot(2, 1, 2)
+        plt.title("Output Currents Over Time")
+        for i in range(currents.shape[1]):
+            plt.plot([c[i] for c in currents], label=f"Neuron {i}")
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
+        plt.figure()
+        plt.plot(self.action_history)
+        plt.title("Action Taken Over Time")
+        plt.xlabel("Frame")
+        plt.ylabel("Action")
+        plt.show()
+
+        plt.figure()
+        plt.plot(self.input_spike_counts)
+        plt.title("Total Input Spikes Per Frame")
+        plt.xlabel("Frame")
+        plt.ylabel("Spike Count")
+        plt.show()
+
+        plt.figure()
+        plt.plot(np.cumsum(self.reward_history))
+        plt.title("Cumulative Reward")
+        plt.xlabel("Frame")
+        plt.ylabel("Total Reward")
+        plt.show()
+
 
 
 if __name__ == '__main__':
